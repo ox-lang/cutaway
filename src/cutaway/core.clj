@@ -2,13 +2,16 @@
   (:require [cutaway.uuids :refer :all]))
 
 
-(defn fetch [cutaway id]
+(defn fetch
   "(λ cutaway → id) → any"
+
+  [cutaway id]
   (get cutaway id))
 
 
 (defn typeof
   "(λ cutaway → id) → keyword"
+
   [cutaway id]
   (-> cutaway
       (get id)
@@ -23,6 +26,7 @@
   object metadata and that by doing so I not only hide an
   implementation detail but can build a nicer API for assembling and
   disassembling cutaway entities"
+
   [obj]
   (::self (meta obj)))
 
@@ -38,25 +42,27 @@
   infinite recursion occur."
 
   [cutaway struct]
-  (->> struct
-       (vals)
-       (mapv (fn [x]
-               (cond (map? x)
-                       (resolve cutaway x)
-                       
-                     (or (vector? x)
-                         (list? x))
-                       (mapv (partial get cutaway) x)
-                      
-                     (uuid? x)
-                       (->> x
-                            (fetch cutaway)
-                            (resolve cutaway))
-                     true
-                       x)))
-       (zipmap (keys struct))
+  (->> (for [[k x] struct]
+         [k
+          (cond (map? x)
+                (resolve cutaway x)
+
+                (or (vector? x)
+                    (list? x))
+                (mapv (partial get cutaway) x)
+
+                (uuid? x)
+                (->> x
+                     (fetch cutaway)
+                     (resolve cutaway))
+                true
+                x)])
+       (into {})
        ((fn [x] (with-meta x
                  {::self (idof struct)})))))
+
+
+(declare decompose)
 
 
 (defn- decompose-seq
@@ -74,11 +80,13 @@
      (let [[cutaway id]
            (decompose cutaway v)]
        [cutaway (assoc m k id)])
+
    (or (list? v)
        (vector? v))
      (let [[cutaway ids]
            (reduce decompose-seq [cutaway []] v)]
        [cutaway (assoc m k ids)])
+
    true
      [cutaway (assoc m k v)]))
 
@@ -87,19 +95,25 @@
   "(λ cutaway → map) -> (cutaway, uuid)
 
   Breaks down nested maps recursively, allowing for the \"direct\"
-  insertion and implicit restructuring nested maps into multiple
+  insertion and implicit restructuring of nested maps into multiple
   linked components. These nested linked components are installed into
-  the CUTAWAY, and an updated CUTAWAY containing the flattened components is
-  returned along with the UUID of obj itself.
+  the cutaway, and an updated cutaway containing the flattened
+  components is returned along with the UUID of obj itself.
 
   Note that decompose deliberately reuses uuids specified by the :self
-  key. This means that round-tripping a datastructure from the CUTAWAY
+  key. This means that round-tripping a datastructure from the cutaway
   through resolve, update-in to decompose is entirely valid as the
   desired effect of updating the nested datastructure(s) will be
   achieved. This update technique is massively inefficient performance
-  wise and that the CUTAWAY accutaways pattern of identifying standard
+  wise and that the cuttaway pattern of identifying standard
   substructures and passing them by ID for direct manipulation is
   preferred."
+
+  ;; FIXME:
+  ;;   Better semantics for manipulating structures in the cutaway are
+  ;;   a work in progress, as the existance of the cutaway
+  ;;   datastructure would ideally be invisible to a programmer. Some
+  ;;   sort of cursor datastructure perhapse
 
   ([cutaway obj id]
      (let [id (uuid)]
@@ -113,7 +127,7 @@
   ([cutaway obj]
      (decompose cutaway obj (uuid))))
 
-  
+
 (defn install
   "(λ cutaway → map → uuid) → cutaway
 
