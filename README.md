@@ -4,7 +4,7 @@
 
 > Sometimes you just have to cut to the heart of the matter
 
-Cutaway provides a mapping from persistant tree datastructures like
+Cutaway provides a mapping from persistent tree datastructures like
 those used in `clojure.tools.analyzer` or `hiccup` to a mutable,
 single depth tree, and back again. The goal of cutaway is to
 simultaneously improve the performance and simplify the implementation
