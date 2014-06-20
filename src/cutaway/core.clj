@@ -2,24 +2,43 @@
   (:require [cutaway.uuids :refer :all]))
 
 
+(defn cutaway?
+  "(λ Object) → Boolean"
+
+  [x]
+  (and (map? x)
+       (every? uuid? (keys x))))
+
+(defn make-cutaway
+  "(λ Map) → Cutaway"
+
+  [x]
+  {:pre [(map? x)]}
+  x)
+
+
 (defn fetch
-  "(λ cutaway → id) → any"
+  "(λ Cutaway → Id) → Any"
 
   [cutaway id]
+  {:pre [(cutaway? cutaway)
+         (uuid? id)]}
   (get cutaway id))
 
 
 (defn typeof
-  "(λ cutaway → id) → keyword"
+  "(λ Cutaway → Id) → Keyword"
 
   [cutaway id]
+  {:pre [(cutaway? cutaway)
+         (uuid? id)]}
   (-> cutaway
       (get id)
       (get :type)))
 
 
 (defn idof
-  "(λ map) → uuid
+  "(λ Map) → Uuid
 
   Function from an object presumed to have come out of the cutaway to its
   cutaway id, if it has one. The idea is that I can pack the ::self key in
@@ -32,9 +51,9 @@
 
 
 (defn resolve
-  "(λ cutaway → map) → map
+  "(λ Cutaway → Map) → Map
 
-  Takes a map, being {<keyword> <uuid>} and recursively fetches the
+  Takes a map, being {keyword → id} and recursively fetches the
   cutaway objects identified by that uuid until such time as the
   object has been fully realized into a simple Clojure map form.
 
@@ -42,24 +61,25 @@
   infinite recursion occur."
 
   [cutaway struct]
-  (->> (for [[k x] struct]
-         [k
-          (cond (map? x)
-                (resolve cutaway x)
-
-                (or (vector? x)
-                    (list? x))
-                (mapv (partial get cutaway) x)
-
-                (uuid? x)
-                (->> x
-                     (fetch cutaway)
-                     (resolve cutaway))
-                true
-                x)])
-       (into {})
-       ((fn [x] (with-meta x
-                 {::self (idof struct)})))))
+  {:pre [(cutaway? cutaway)
+         (map? struct)]}
+  (with-meta
+    (->> (for [[k x] struct]
+           [k
+            (cond (map? x)
+                  (resolve cutaway x)
+                  
+                  (vector? x)
+                  (mapv (partial get cutaway) x)
+                  
+                  (uuid? x)
+                  (->> x
+                       (fetch cutaway)
+                       (resolve cutaway))
+                  true
+                  x)])
+         (into {}))
+    {::self (idof struct)}))
 
 
 (declare decompose)
@@ -92,7 +112,8 @@
 
 
 (defn decompose
-  "(λ cutaway → map) -> (cutaway, uuid)
+  "(λ Cutaway → Map) → (Cutaway, Id)
+   (λ Cutaway → Map → Id) → (Cutaway, Id)
 
   Breaks down nested maps recursively, allowing for the \"direct\"
   insertion and implicit restructuring of nested maps into multiple
@@ -109,13 +130,9 @@
   substructures and passing them by ID for direct manipulation is
   preferred."
 
-  ;; FIXME:
-  ;;   Better semantics for manipulating structures in the cutaway are
-  ;;   a work in progress, as the existance of the cutaway
-  ;;   datastructure would ideally be invisible to a programmer. Some
-  ;;   sort of cursor datastructure perhapse
-
   ([cutaway obj id]
+     {:pre [(cutaway? cutaway)
+            (uuid? id)]}
      (let [id (uuid)]
        (if (map? obj)
          (let [id (or (idof obj) id)
@@ -125,14 +142,17 @@
          [(assoc cutaway id obj) id])))
 
   ([cutaway obj]
+     {:pre [(cutaway? cutaway)]}
      (decompose cutaway obj (uuid))))
 
 
 (defn install
-  "(λ cutaway → map → uuid) → cutaway
+  "(λ Cutaway → Map → Id) → Cutaway
 
   Provides a wrapper around decompose for when you just want to
   install something to a known key quickly and cleanly."
 
   [cutaway obj id]
+  {:pre [(cutaway? cutaway)
+         (uuid? id)]}
   (first (decompose cutaway obj id)))
